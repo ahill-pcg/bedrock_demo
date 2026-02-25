@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report Viewer – Certification Reports</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface-hover: #243044;
+      --border: #2d3a4d;
+      --text: #e6edf3;
+      --text-muted: #8b9eb3;
+      --accent: #58a6ff;
+      --accent-dim: #388bfd66;
+      --success: #3fb950;
+      --warning: #d29922;
+      --error: #f85149;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      height: 100vh;
+    }
+
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    }
+
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-header h1 {
+      margin: 0;
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+
+    .sidebar-header p {
+      margin: 0.25rem 0 0;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .sidebar-header .refresh-btn {
+      margin-top: 0.75rem;
+      padding: 0.375rem 0.75rem;
+      background: var(--border);
+      border: none;
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.8125rem;
+      cursor: pointer;
+    }
+
+    .sidebar-header .refresh-btn:hover {
+      background: var(--surface-hover);
+    }
+
+    .report-list {
+      padding: 0.75rem;
+    }
+
+    .report-item {
+      display: block;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.875rem;
+      margin-bottom: 0.25rem;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .report-item:hover {
+      background: var(--surface-hover);
+      color: var(--accent);
+    }
+
+    .report-item.active {
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .report-name {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .report-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .viewer-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .viewer-header h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .viewer-header .original-pdf-btn {
+      padding: 0.375rem 0.75rem;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .viewer-header .original-pdf-btn:hover {
+      opacity: 0.9;
+    }
+
+    .viewer-frame {
+      flex: 1;
+      border: none;
+      background: #fff;
+      min-height: 0;
+    }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      padding: 2rem;
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      opacity: 0.5;
+      margin-bottom: 1rem;
+    }
+
+    .empty-state p {
+      margin: 0;
+      font-size: 0.9375rem;
+    }
+
+    .loading {
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .error-state {
+      padding: 2rem;
+      color: var(--error);
+    }
+
+    .refresh-btn {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .refresh-btn:hover {
+      background: var(--surface-hover);
+    }
+
+    .dynamodb-links {
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .dynamodb-link {
+      display: block;
+      padding: 0.5rem 0.75rem;
+      background: var(--border);
+      border-radius: 6px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.8125rem;
+      transition: background 0.15s;
+    }
+
+    .dynamodb-link:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+
+    .dynamodb-view {
+      flex: 1;
+      overflow: auto;
+      padding: 1.5rem;
+    }
+
+    .dynamodb-view h2 {
+      margin: 0 0 1rem;
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+
+    .dynamodb-view .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+    }
+
+    .dynamodb-view .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      background: var(--surface);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .data-table th,
+    .data-table td {
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table th {
+      background: var(--surface-hover);
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .data-table tr:hover td {
+      background: var(--surface-hover);
+    }
+
+    .data-table td {
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>Certification Reports</h1>
+        <p>Click a report to view</p>
+        <button type="button" class="refresh-btn" id="refresh-btn">Refresh</button>
+        <nav class="dynamodb-links">
+          <a href="#" class="dynamodb-link" id="link-data-table">Data Table (Loans)</a>
+          <a href="#" class="dynamodb-link" id="link-config-table">Config Table</a>
+        </nav>
+      </div>
+      <div class="report-list" id="report-list">
+        <div class="loading" id="list-loading">Loading reports…</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="viewer-header" id="viewer-header" style="display: none;">
+        <h2 id="current-report-name"></h2>
+        <a class="original-pdf-btn" id="original-pdf-btn" href="#" target="_blank" rel="noopener" style="display: none;">View original PDF</a>
+      </div>
+      <div class="empty-state" id="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <p>Select a report from the list</p>
+      </div>
+      <iframe class="viewer-frame" id="viewer-frame" style="display: none;"></iframe>
+      <div class="dynamodb-view" id="dynamodb-view" style="display: none;">
+        <a href="#" class="back-link" id="back-to-reports">← Back to reports</a>
+        <h2 id="dynamodb-title"></h2>
+        <div id="dynamodb-content"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const reportList = document.getElementById("report-list");
+    const listLoading = document.getElementById("list-loading");
+    const emptyState = document.getElementById("empty-state");
+    const viewerHeader = document.getElementById("viewer-header");
+    const currentReportName = document.getElementById("current-report-name");
+    const viewerFrame = document.getElementById("viewer-frame");
+
+    async function loadReports() {
+      listLoading.style.display = "block";
+      reportList.querySelectorAll(".report-item").forEach(el => el.remove());
+
+      try {
+        const res = await fetch("/api/reports");
+        const contentType = res.headers.get("content-type") || "";
+        listLoading.style.display = "none";
+
+        if (!contentType.includes("application/json")) {
+          const text = await res.text();
+          reportList.innerHTML = `<div class="error-state">Server returned ${res.status}. ${text.slice(0, 200)}</div>`;
+          return;
+        }
+
+        const data = await res.json();
+
+        if (data.error) {
+          reportList.innerHTML = `<div class="error-state">${escapeHtml(data.error)}<br><br>Check AWS_PROFILE (${escapeHtml("bedrock")}) and run: aws sso login</div>`;
+          return;
+        }
+
+        if (!data.reports || data.reports.length === 0) {
+          reportList.innerHTML = "<p class='loading'>No reports found</p>";
+          return;
+        }
+
+        data.reports.forEach(r => {
+          const a = document.createElement("a");
+          a.href = "#";
+          a.className = "report-item";
+          a.dataset.key = r.key;
+          a.innerHTML = `
+            <span class="report-name">${escapeHtml(r.name)}</span>
+            <span class="report-meta">${r.lastModified ? formatDate(r.lastModified) : ""}</span>
+          `;
+          a.addEventListener("click", (e) => {
+            e.preventDefault();
+            selectReport(r);
+          });
+          reportList.appendChild(a);
+        });
+      } catch (err) {
+        listLoading.style.display = "none";
+        reportList.innerHTML = `<div class="error-state">Failed to load: ${err.message}</div>`;
+      }
+    }
+
+    function deriveOriginalPdfKey(reportKey) {
+      if (reportKey.includes("/reports/") && reportKey.endsWith("-report.html")) {
+        return reportKey.replace("/reports/", "/inbound/").replace("-report.html", ".pdf");
+      }
+      if (reportKey.includes("/exceptions/") && reportKey.endsWith("-exception.html")) {
+        return reportKey.replace("-exception.html", ".pdf");
+      }
+      return null;
+    }
+
+    async function selectReport(report) {
+      document.querySelectorAll(".report-item").forEach(el => el.classList.remove("active"));
+      const active = document.querySelector(`.report-item[data-key="${report.key}"]`);
+      if (active) active.classList.add("active");
+
+      emptyState.style.display = "none";
+      viewerHeader.style.display = "flex";
+      viewerFrame.style.display = "block";
+      currentReportName.textContent = report.name;
+
+      const originalPdfKey = deriveOriginalPdfKey(report.key);
+      const pdfBtn = document.getElementById("original-pdf-btn");
+      if (originalPdfKey) {
+        try {
+          const pdfRes = await fetch(`/api/report?key=${encodeURIComponent(originalPdfKey)}`);
+          const pdfData = await pdfRes.json();
+          if (pdfData.url) {
+            pdfBtn.href = pdfData.url;
+            pdfBtn.style.display = "inline-block";
+          } else {
+            pdfBtn.style.display = "none";
+          }
+        } catch {
+          pdfBtn.style.display = "none";
+        }
+      } else {
+        pdfBtn.style.display = "none";
+      }
+
+      try {
+        const res = await fetch(`/api/report?key=${encodeURIComponent(report.key)}`);
+        const data = await res.json();
+        if (data.url) {
+          viewerFrame.src = data.url;
+        } else {
+          viewerFrame.srcdoc = `<p style="padding:2rem;color:#f85149">Failed to load report</p>`;
+        }
+      } catch (err) {
+        viewerFrame.srcdoc = `<p style="padding:2rem;color:#f85149">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    function formatDate(iso) {
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+      } catch {
+        return "";
+      }
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    const dynamodbView = document.getElementById("dynamodb-view");
+    const dynamodbTitle = document.getElementById("dynamodb-title");
+    const dynamodbContent = document.getElementById("dynamodb-content");
+
+    function showReportView() {
+      viewerHeader.style.display = "flex";
+      emptyState.style.display = "flex";
+      viewerFrame.style.display = "block";
+      dynamodbView.style.display = "none";
+    }
+
+    function showDynamoDBView() {
+      viewerHeader.style.display = "none";
+      emptyState.style.display = "none";
+      viewerFrame.style.display = "none";
+      dynamodbView.style.display = "block";
+    }
+
+    function buildTableFromItems(items) {
+      if (!items || items.length === 0) {
+        return "<p class='loading'>No items found</p>";
+      }
+      const allKeys = new Set();
+      items.forEach(item => Object.keys(item).forEach(k => allKeys.add(k)));
+      const keys = Array.from(allKeys).sort();
+      let html = "<table class='data-table'><thead><tr>";
+      keys.forEach(k => {
+        html += `<th>${escapeHtml(k)}</th>`;
+      });
+      html += "</tr></thead><tbody>";
+      items.forEach(item => {
+        html += "<tr>";
+        keys.forEach(k => {
+          const val = item[k];
+          const str = Array.isArray(val) ? val.join(", ") : (val === null || val === undefined ? "" : String(val));
+          html += `<td title="${escapeHtml(str)}">${escapeHtml(str)}</td>`;
+        });
+        html += "</tr>";
+      });
+      html += "</tbody></table>";
+      return html;
+    }
+
+    async function loadDynamoDBTable(apiPath, title) {
+      showDynamoDBView();
+      dynamodbTitle.textContent = title;
+      dynamodbContent.innerHTML = "<div class='loading'>Loading…</div>";
+
+      try {
+        const res = await fetch(apiPath);
+        const data = await res.json();
+        if (data.error) {
+          dynamodbContent.innerHTML = `<div class="error-state">${escapeHtml(data.error)}</div>`;
+          return;
+        }
+        dynamodbContent.innerHTML = buildTableFromItems(data.items || []);
+      } catch (err) {
+        dynamodbContent.innerHTML = `<div class="error-state">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    document.getElementById("link-data-table").addEventListener("click", (e) => {
+      e.preventDefault();
+      loadDynamoDBTable("/api/dynamodb/data", "Data Table (Loans)");
+    });
+
+    document.getElementById("link-config-table").addEventListener("click", (e) => {
+      e.preventDefault();
+      loadDynamoDBTable("/api/dynamodb/config", "Config Table");
+    });
+
+    document.getElementById("back-to-reports").addEventListener("click", (e) => {
+      e.preventDefault();
+      showReportView();
+    });
+
+    loadReports();
+
+    document.getElementById("refresh-btn").addEventListener("click", loadReports);
+  </script>
+</body>
+</html>
